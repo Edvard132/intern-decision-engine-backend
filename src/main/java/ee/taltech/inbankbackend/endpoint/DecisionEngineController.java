@@ -1,9 +1,6 @@
 package ee.taltech.inbankbackend.endpoint;
 
-import ee.taltech.inbankbackend.exceptions.InvalidLoanAmountException;
-import ee.taltech.inbankbackend.exceptions.InvalidLoanPeriodException;
-import ee.taltech.inbankbackend.exceptions.InvalidPersonalCodeException;
-import ee.taltech.inbankbackend.exceptions.NoValidLoanException;
+import ee.taltech.inbankbackend.exceptions.*;
 import ee.taltech.inbankbackend.service.Decision;
 import ee.taltech.inbankbackend.service.DecisionEngine;
 import lombok.extern.slf4j.Slf4j;
@@ -19,6 +16,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/loan")
 @CrossOrigin
+@Slf4j
 public class DecisionEngineController {
 
     private final DecisionEngine decisionEngine;
@@ -36,6 +34,8 @@ public class DecisionEngineController {
      * requested loan amount, and loan period.<br><br>
      * - If the loan amount or period is invalid, the endpoint returns a bad request response with an error message.<br>
      * - If the personal ID code is invalid, the endpoint returns a bad request response with an error message.<br>
+     * - If the person is not adult, the endpoint returns a bad request response with an error message.<br>
+     * - If the person age and requested loan period is over expected lifetime of a particular country, the endpoint returns a bad request response with an error message.<br>
      * - If an unexpected error occurs, the endpoint returns an internal server error response with an error message.<br>
      * - If no valid loans can be found, the endpoint returns a not found response with an error message.<br>
      * - If a valid loan is found, a DecisionResponse is returned containing the approved loan amount and period.
@@ -47,13 +47,14 @@ public class DecisionEngineController {
     public ResponseEntity<DecisionResponse> requestDecision(@RequestBody DecisionRequest request) {
         try {
             Decision decision = decisionEngine.
-                    calculateApprovedLoan(request.getPersonalCode(), request.getLoanAmount(), request.getLoanPeriod());
+                    calculateApprovedLoan(request.getPersonalCode(), request.getLoanAmount(), request.getLoanPeriod(), request.getCountry());
             response.setLoanAmount(decision.getLoanAmount());
             response.setLoanPeriod(decision.getLoanPeriod());
             response.setErrorMessage(decision.getErrorMessage());
 
             return ResponseEntity.ok(response);
-        } catch (InvalidPersonalCodeException | InvalidLoanAmountException | InvalidLoanPeriodException e) {
+        } catch (InvalidPersonalCodeException | InvalidLoanAmountException | InvalidLoanPeriodException |
+                 InvalidPersonAgeException e) {
             response.setLoanAmount(null);
             response.setLoanPeriod(null);
             response.setErrorMessage(e.getMessage());

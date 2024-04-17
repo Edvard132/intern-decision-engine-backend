@@ -11,4 +11,10 @@ public class DecisionEngineConstants {
     public static final Integer SEGMENT_1_CREDIT_MODIFIER = 100;
     public static final Integer SEGMENT_2_CREDIT_MODIFIER = 300;
     public static final Integer SEGMENT_3_CREDIT_MODIFIER = 1000;
+
+    public static final Integer EXPECTED_LIFETIME_ESTONIA = 60;
+    public static final Integer EXPECTED_LIFETIME_LATVIA = 40;
+    public static final Integer EXPECTED_LIFETIME_LITHUANIA = 80;
+
+
 }

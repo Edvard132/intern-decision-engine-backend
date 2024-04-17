@@ -1,11 +1,10 @@
 package ee.taltech.inbankbackend.service;
 
+import com.github.vladislavgoltjajev.personalcode.locale.estonia.EstonianPersonalCodeParser;
 import com.github.vladislavgoltjajev.personalcode.locale.estonia.EstonianPersonalCodeValidator;
 import ee.taltech.inbankbackend.config.DecisionEngineConstants;
-import ee.taltech.inbankbackend.exceptions.InvalidLoanAmountException;
-import ee.taltech.inbankbackend.exceptions.InvalidLoanPeriodException;
-import ee.taltech.inbankbackend.exceptions.InvalidPersonalCodeException;
-import ee.taltech.inbankbackend.exceptions.NoValidLoanException;
+import ee.taltech.inbankbackend.exceptions.*;
+import ee.taltech.inbankbackend.utils.LoanAgeValidator;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
@@ -15,11 +14,13 @@ import org.springframework.stereotype.Service;
  * which is determined by the last four digits of their ID code.
  */
 @Service
-@Slf4j
 public class DecisionEngine {
 
     // Used to check for the validity of the presented ID code.
     private final EstonianPersonalCodeValidator validator = new EstonianPersonalCodeValidator();
+
+    private final LoanAgeValidator loanAgeValidator = new LoanAgeValidator();
+
     private int creditModifier = 0;
 
     /**
@@ -31,17 +32,19 @@ public class DecisionEngine {
      * @param personalCode ID code of the customer that made the request.
      * @param loanAmount   Requested loan amount
      * @param loanPeriod   Requested loan period
+     * @param country      Requested country
      * @return A Decision object containing the approved loan amount and period, and an error message (if any)
      * @throws InvalidPersonalCodeException If the provided personal ID code is invalid
+     * @throws InvalidPersonAgeException If the person is not adult or requested loan period and person age sum is over expected lifetime.
      * @throws InvalidLoanAmountException   If the requested loan amount is invalid
      * @throws InvalidLoanPeriodException   If the requested loan period is invalid
      * @throws NoValidLoanException         If there is no valid loan found for the given ID code, loan amount and loan period
      */
-    public Decision calculateApprovedLoan(String personalCode, Long loanAmount, int loanPeriod)
+    public Decision calculateApprovedLoan(String personalCode, Long loanAmount, int loanPeriod, String country)
             throws InvalidPersonalCodeException, InvalidLoanAmountException, InvalidLoanPeriodException,
-            NoValidLoanException {
+            NoValidLoanException, InvalidPersonAgeException {
         try {
-            verifyInputs(personalCode, loanAmount, loanPeriod);
+            verifyInputs(personalCode, loanAmount, loanPeriod, country);
         } catch (Exception e) {
             return new Decision(null, null, e.getMessage());
         }
@@ -58,11 +61,12 @@ public class DecisionEngine {
 
         if (creditScore < 1) {
 
-            if (getCreditScore(loanAmount, loanPeriod) < 1) {
-                while (getCreditScore(loanAmount, loanPeriod) < 1 && loanPeriod <= DecisionEngineConstants.MAXIMUM_LOAN_PERIOD) {
-                    loanPeriod++;
-                }
+            while (getCreditScore(loanAmount, loanPeriod) < 1 &&
+                    loanPeriod <= DecisionEngineConstants.MAXIMUM_LOAN_PERIOD &&
+                    loanAgeValidator.isNotExceedingAverageLifetime(personalCode, loanPeriod, country)) {
+                loanPeriod++;
             }
+
         }
 
         if (loanPeriod <= DecisionEngineConstants.MAXIMUM_LOAN_PERIOD) {
@@ -74,7 +78,7 @@ public class DecisionEngine {
     }
 
     /**
-     * Calculates the largest valid loan for the current credit modifier and loan period.
+     * Calculates the largest valid based on person's credit score.
      *
      * @return Largest valid loan amount
      */
@@ -91,7 +95,6 @@ public class DecisionEngine {
                 loanAmount += 100;
             }
         }
-
         return loanAmount;
     }
 
@@ -135,15 +138,23 @@ public class DecisionEngine {
      * @param personalCode Provided personal ID code
      * @param loanAmount   Requested loan amount
      * @param loanPeriod   Requested loan period
+     * @param country      Requested country
      * @throws InvalidPersonalCodeException If the provided personal ID code is invalid
+     * @throws InvalidPersonAgeException If the person is not adult or requested loan period and person age sum is over expected lifetime.
      * @throws InvalidLoanAmountException   If the requested loan amount is invalid
      * @throws InvalidLoanPeriodException   If the requested loan period is invalid
      */
-    private void verifyInputs(String personalCode, Long loanAmount, int loanPeriod)
-            throws InvalidPersonalCodeException, InvalidLoanAmountException, InvalidLoanPeriodException {
+    private void verifyInputs(String personalCode, Long loanAmount, int loanPeriod, String country)
+            throws InvalidPersonalCodeException, InvalidLoanAmountException, InvalidLoanPeriodException, InvalidPersonAgeException {
 
         if (!validator.isValid(personalCode)) {
             throw new InvalidPersonalCodeException("Invalid personal ID code!");
+        }
+        if (!loanAgeValidator.isNotUnderAge(personalCode)) {
+            throw new InvalidPersonAgeException("Loans are approved for adults only!");
+        }
+        if (!loanAgeValidator.isNotExceedingAverageLifetime(personalCode, loanPeriod, country)){
+            throw new InvalidPersonAgeException("Loan for selected period is not approved at your age!");
         }
         if (!(DecisionEngineConstants.MINIMUM_LOAN_AMOUNT <= loanAmount)
                 || !(loanAmount <= DecisionEngineConstants.MAXIMUM_LOAN_AMOUNT)) {
