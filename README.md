@@ -1,3 +1,36 @@
+# Code review of TICKET-101
+
+
+## Well-implemented features:
+
+1) **Implemented a decision engine**: The decision engine that takes the personal code, loan amount and loan period in months to determine a valid loan amount.
+
+2) **Loan amount validation**: The decision engine determines the maximum sum to be approved in case the requested sum is bigger that could be approved.
+
+3) **Debt segmentation**: The decision engine considers existing debt to assign appropriate segmentation to the user.
+
+4) **Extended loan period**: If a suitable loan isn't found within the requested period, the engine can suggest an extended period for the desired loan amount.
+
+5) **Frontend design**: The input validation and form design are well-implemented.
+
+
+
+## Areas of improvement:
+
+
+1) **MOST IMPORTANT Maximum loan amount limit**: The decision engine should determine the maximum approvable loan amount for a given period, regardless of the requested amount. Currently, it only validates the requested amount.
+
+2) **Person credit score calculation**: Credit score calculation not implemented as needed. Current implementation takes into account only the loan period and creditModifier ( multiplies these values).
+
+**Additional notes**: Loan period select slider starting value set to 6 months in frontend although the minimum loan period is 12 months.
+
+
+#### All shortcomings have been addressed according to the requirements.
+
+
+
+
+
 # InBank Backend Service
 
 This service provides a REST API for calculating an approved loan amount and period for a customer.
